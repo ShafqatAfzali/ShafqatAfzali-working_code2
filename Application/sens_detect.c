@@ -1,0 +1,101 @@
+#include "main.h"
+#include "sens_detect.h"
+#include "i2c.h"
+#include "cmsis_os2.h"
+#include <stdbool.h>
+
+
+typedef struct{
+	char *sensor_name;
+	uint8_t sensor_addr;
+	uint8_t flagg;
+} sensor_arr;
+
+//sensor navn, sensor adresse, flagg
+static sensor_arr sens_obj_arr[3]={
+		{"temp sensor", 0x38,0x01},
+		{"light sensor", 0x10,0x02},
+		{"accelerometer", 0x1D,0x04}};
+
+#define searching_flagg 0x8
+
+HAL_StatusTypeDef detected_status;
+osThreadId_t detect_thread_id;
+osEventFlagsId_t sensors_flag_id;
+osMutexId_t I2C_mutex_id;
+osStatus_t mutex_status;
+bool sens_detection_state;
+
+
+void detect_thread_func(){
+	while(true){
+		//får flagget, i første runde spiller dette ikke noe rolle
+        uint32_t detect_flag = osEventFlagsGet(sensors_flag_id);
+
+        //aktiverer thread og tømmer flagg
+		if(detect_flag & searching_flagg){
+			sens_detection_state=true;
+            osEventFlagsClear(sensors_flag_id, searching_flagg);
+		}
+
+		//hvis ingen sensor thread aktivert kjører deteksjon
+		//sjekker om i2c blir brukt via mutex
+		mutex_status = osMutexAcquire(I2C_mutex_id, osWaitForever);
+
+		if(mutex_status == osOK){
+
+			for (int i=0; i<3; i++){
+				if(sens_detection_state){
+					//sjekker sensor status
+					detected_status = HAL_I2C_IsDeviceReady(&hi2c2, sens_obj_arr[i].sensor_addr << 1, 2, 100);
+						//hvis aktivert, setter flagg, deaktiverer deteksjon og slipper semafor
+						if (detected_status == HAL_OK){
+							//print("device %s is alive\n", sens_obj_arr[i].sensor_name);
+							osEventFlagsSet(sensors_flag_id, sens_obj_arr[i].flagg);
+							sens_detection_state=false;
+							break;
+						} else {
+							//hvis ikke setter flagg og releaser mutex, slik at deteksjon kjører fortsatt
+							//print("not sensor found\n");
+						    HAL_I2C_DeInit(&hi2c2);
+						    osDelay(50);
+						    HAL_I2C_Init(&hi2c2);
+						}
+
+					osDelay(200);
+				}
+
+			}
+		}
+		osMutexRelease(I2C_mutex_id);
+		osDelay(200);
+
+	}
+}
+
+
+void detect_INIT(){
+
+	//starter detection thread med engang
+	sens_detection_state=true;
+
+    sensors_flag_id = osEventFlagsNew(NULL);
+
+    I2C_mutex_id = osMutexNew(NULL);
+
+    const osThreadAttr_t detect_thread_attr = {
+        .name = "sensor_detection_thread",
+        .stack_size = 1024,
+        .priority = osPriorityNormal,
+    };
+
+    osThreadNew(detect_thread_func, NULL, &detect_thread_attr);
+}
+
+osEventFlagsId_t get_flag_id() {
+    return sensors_flag_id;
+}
+
+osMutexId_t get_i2c_mutex_id() {
+    return I2C_mutex_id;
+}
