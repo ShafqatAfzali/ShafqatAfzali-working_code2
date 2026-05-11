@@ -1,5 +1,6 @@
 #include "light_sens.h"
 #include "sens_detect.h"
+#include "controller.h"
 #include "i2c.h"
 #include "cmsis_os2.h"
 #include <stdbool.h>
@@ -36,7 +37,7 @@ osThreadId_t lightsens_thread_id;
 
 HAL_StatusTypeDef config_transmit_status;
 
-//changed_sens_obj msg;
+sens_obj msg;
 
 
 void light_sens_config(){
@@ -47,7 +48,7 @@ void light_sens_config(){
 		sens_config_write & 0xFF         // LSB av config
 	};
 	size_t transmit_size = sizeof(config_write);
-	config_transmit_status=HAL_I2C_Master_Transmit(&hi2c2, sens_slave_addr<< 1, config_write, transmit_size, 200);
+	HAL_I2C_Master_Transmit(&hi2c2, sens_slave_addr<< 1, config_write, transmit_size, 200);
 	osDelay(1000);
 
 	//aktiverere power saving mode med mode 00 (8uA)
@@ -86,6 +87,7 @@ void light_sens_thread_func(){
 			osStatus_t I2C_status = osMutexAcquire(get_i2c_mutex_id(), osWaitForever);
 
 			if(I2C_status==osOK){
+
 				uint8_t rx_buffer[2];  // buffer for output dataen
 				//leser verdier med mem_read siden det er enklere og for å lese må vi ha repeated start etter transmitt
 				transmit_status = HAL_I2C_Mem_Read(&hi2c2, sens_slave_addr << 1, sens__HighRes_output_reg_addr, I2C_MEMADD_SIZE_8BIT, rx_buffer, 2, 200);
@@ -94,28 +96,25 @@ void light_sens_thread_func(){
 					light_sens_output = (rx_buffer[1] << 8) | rx_buffer[0];
 					uint32_t output_mlux = (light_sens_output * 168) / 10;
 
-					/*
 					strcpy(msg.sens_type, "light");
-					msg.sens_data[0] = output_mlux;
-					msg.sens_data[1] = 0;
-					msg.sens_data[2] = 0;
+					msg.sens_data= output_mlux;
 
-					osMessageQueuePut(msg_queue_get(), &msg, 0,0);*/
+					osMessageQueuePut(sens_msg_queue_get(), &msg, 0,0);
 				} else {
 					//aktiverer detekajon og deaktiverer thread while loop
 					HAL_I2C_DeInit(&hi2c2);
 					osDelay(50);
 					HAL_I2C_Init(&hi2c2);
-					osEventFlagsSet(get_flag_id(), 0x08);
 					light_sens_active=false;
 
-					/*
-					strcpy(msg.sens_type, "no sensor");
-					msg.sens_data[0] = 0;
-					msg.sens_data[1] = 0;
-					msg.sens_data[2] = 0;
 
-					osMessageQueuePut(msg_queue_get(), &msg, 0,0);*/
+					strcpy(msg.sens_type, "no sensor");
+					msg.sens_data = 0;
+
+					osMessageQueuePut(sens_msg_queue_get(), &msg, 0,0);
+
+					osEventFlagsSet(get_flag_id(), 0x08);
+
 				}
 
 			}

@@ -8,17 +8,20 @@
 #include "temp_sens.h"
 #include "display_driver.h"
 #include "spi.h"
-#include "display_driver.h"
-
-
+#include "lvgl_send.h"
+#include "mytouch.h"
+#include "controller.h"
+#include "cmsis_os2.h"
 
 void myapp(){
-	HAL_GPIO_WritePin(GPIOled_GPIO_Port,GPIOled_Pin,1);
+	lvgl_thread_INIT();
     detect_INIT();
-    display_INIT();
     light_sens_INIT();
     accelerometer_INIT();
     temp_sens_INIT();
+    touchscreen_INIT();
+    controller_INIT();
+
 }
 
 

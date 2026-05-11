@@ -3,28 +3,32 @@
 #include "main.h"
 #include "cmsis_os2.h"
 #include <stdint.h>
+#include "lvgl_send.h"
 
-void display_write_command(uint8_t command){
-	HAL_GPIO_WritePin(SPI_DC_GPIO_Port, SPI_DC_Pin, 1);
-	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 1);
-	HAL_SPI_Transmit(&hspi2, &command, 1, 100);
-    HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 0);
-}
-
-void display_write_data(uint8_t data){
-
+void display_write_command(uint8_t command)
+{
 	HAL_GPIO_WritePin(SPI_DC_GPIO_Port, SPI_DC_Pin, 0);
-	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 1);
+	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 0);
+	HAL_SPI_Transmit(&hspi2, &command, 1, 100);
+    HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 1);
+}
+
+void display_write_data(uint8_t data)
+{
+
+	HAL_GPIO_WritePin(SPI_DC_GPIO_Port, SPI_DC_Pin, 1);
+	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 0);
 	HAL_SPI_Transmit(&hspi2, &data, 1, 100);
-    HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 0);
+    HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 1);
 
 }
 
 
-void display_hardware_reset(){
-	HAL_GPIO_WritePin(SPI_RST_GPIO_Port, SPI_RST_Pin, 1);
-    osDelay(10);
+void display_hardware_reset()
+{
 	HAL_GPIO_WritePin(SPI_RST_GPIO_Port, SPI_RST_Pin, 0);
+    osDelay(10);
+	HAL_GPIO_WritePin(SPI_RST_GPIO_Port, SPI_RST_Pin, 1);
     osDelay(120);
 }
 
@@ -162,14 +166,15 @@ void display_set_img(img_obj *this_img)
 	display_start_frame();
 
 	// sender alle pixler med engang
-	HAL_GPIO_WritePin(SPI_DC_GPIO_Port, SPI_DC_Pin, 0);
-	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 1);
-	HAL_SPI_Transmit(&hspi2, this_img->pixels, total_bytes, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(SPI_DC_GPIO_Port, SPI_DC_Pin, 1);
 	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 0);
+	HAL_SPI_Transmit(&hspi2, this_img->pixels, total_bytes, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(SPI_CS_GPIO_Port, SPI_CS_Pin, 1);
 }
 
-
+/*
 uint8_t imgbuff[total_display_bytes]={0};
+
 void display_test_single_color(uint16_t color) {
     img_obj myimg;
     myimg.pixels = imgbuff;
@@ -184,7 +189,7 @@ void display_test_single_color(uint16_t color) {
     }
 
     display_set_img(&myimg);
-}
+}*/
 
 void display_config(){
 	//resetter
@@ -221,6 +226,7 @@ void display_config(){
 }
 
 
+/*
 void display_test_thread(){
 	display_config();
 
@@ -247,7 +253,7 @@ void display_INIT(){
     osThreadNew(display_test_thread, NULL, &display_thread_attr);
 
 }
-
+*/
 
 
 

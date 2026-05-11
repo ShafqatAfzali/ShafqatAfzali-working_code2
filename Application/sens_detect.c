@@ -2,6 +2,7 @@
 #include "sens_detect.h"
 #include "i2c.h"
 #include "cmsis_os2.h"
+#include "light_sens.h"
 #include <stdbool.h>
 
 
@@ -17,7 +18,7 @@ static sensor_arr sens_obj_arr[3]={
 		{"light sensor", 0x10,0x02},
 		{"accelerometer", 0x1D,0x04}};
 
-#define searching_flagg 0x8
+#define searching_flagg 0x08
 
 HAL_StatusTypeDef detected_status;
 osThreadId_t detect_thread_id;
@@ -90,6 +91,7 @@ void detect_INIT(){
     };
 
     osThreadNew(detect_thread_func, NULL, &detect_thread_attr);
+
 }
 
 osEventFlagsId_t get_flag_id() {

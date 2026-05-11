@@ -1,5 +1,6 @@
-/*#include "lvgl_send.h"
+#include "lvgl_send.h"
 #include "lvgl.h"
+#include "controller.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -7,10 +8,7 @@ uint8_t imgbuff[total_display_bytes/5];
 
 img_obj img_to_send;
 
-changed_sens_obj my_sens_obj;
-
-osMessageQueueId_t sensor_queue;
-
+update_image_obj update_img_obj;
 
 
 void my_flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t * px_buf)
@@ -19,7 +17,7 @@ void my_flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t * px_buf)
     uint32_t px_count = (area->x2 - area->x1 + 1) *
                         (area->y2 - area->y1 + 1);
 
-    // swap bytes
+    // omformer bytes (byte0 <--> byte1) på grunn av hvordan skjermen vil ha pixel data
     for(uint32_t i = 0; i < px_count * 2; i += 2) {
         uint8_t tmp = px_buf[i];
         px_buf[i] = px_buf[i+1];
@@ -39,6 +37,12 @@ void my_flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t * px_buf)
 
 }
 
+
+
+
+
+
+
 void lvgl_thread(){
 
 	lv_init();
@@ -51,40 +55,65 @@ void lvgl_thread(){
 
 	lv_obj_t * function_label = lv_label_create(lv_screen_active());
 	lv_label_set_text(function_label, "showing");
-	lv_obj_align(function_label, LV_ALIGN_TOP_MID, 0, 20);
+	lv_obj_align(function_label, LV_ALIGN_TOP_MID, 0, 90);
 
 	lv_obj_t * sensor_label = lv_label_create(lv_screen_active());
 	lv_label_set_text(sensor_label, "no sensor");
-	lv_obj_align(sensor_label, LV_ALIGN_TOP_MID, 0, 60);
+	lv_obj_align(sensor_label, LV_ALIGN_TOP_MID, 0, 110);
 
 	lv_obj_t * sensor_value = lv_label_create(lv_screen_active());
-	lv_label_set_text(sensor_value, "NA");
-	lv_obj_align(sensor_value, LV_ALIGN_TOP_MID, 0, 100);
+	lv_label_set_text(sensor_value, "------");
+	lv_obj_align(sensor_value, LV_ALIGN_TOP_MID, 0, 130);
+
+
+
+
+    // off button
+    lv_obj_t * label;
+	lv_obj_t * btn1 = lv_button_create(lv_screen_active());
+	lv_obj_remove_style_all(btn1);
+	lv_obj_set_size(btn1, 80, 40);
+	lv_obj_align(btn1, LV_ALIGN_TOP_MID, 0, 0);
+
+	lv_obj_set_style_bg_color(btn1, lv_color_hex(0x03fc17), LV_PART_MAIN);
+	lv_obj_set_style_bg_opa(btn1, LV_OPA_COVER, LV_PART_MAIN);
+
+	label = lv_label_create(btn1);
+	lv_label_set_text(label, "Screen off");
+	lv_obj_set_style_text_color(label, lv_color_hex(0x000000), LV_PART_MAIN);
+	lv_obj_center(label);
+
+
+    lv_obj_t * label2;
+	lv_obj_t * btn2 = lv_button_create(lv_screen_active());
+	lv_obj_remove_style_all(btn2);
+	lv_obj_set_size(btn2, 80, 40);
+	lv_obj_align(btn2, LV_ALIGN_TOP_MID, 0, 40);
+
+	lv_obj_set_style_bg_color(btn2, lv_color_hex(0x015bb0), LV_PART_MAIN);
+	lv_obj_set_style_bg_opa(btn2, LV_OPA_COVER, LV_PART_MAIN);
+
+
+	label2 = lv_label_create(btn2);
+	lv_label_set_text(label2, "Show data");
+	lv_obj_set_style_text_color(label2, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+	lv_obj_center(label2);
 
 	while(1){
         lv_timer_handler();
 
-    	if(osMessageQueueGet(sensor_queue, &my_sens_obj, NULL, 0) == osOK) {
+    	if(osMessageQueueGet(img_msg_queue_get(), &update_img_obj, NULL, 0) == osOK) {
 
-            lv_label_set_text(sensor_label, my_sens_obj.sens_type);
+            lv_label_set_text(function_label, update_img_obj.img_showing);
 
-            if(strcmp(my_sens_obj.sens_type, "acceleration") == 0){
+            lv_label_set_text(sensor_label, update_img_obj.sens_type);
 
-        		char newstr[100];
-
-        		snprintf(newstr, sizeof(newstr), "X=%.1f Y=%.1f Z=%.1f", (float)my_sens_obj.sens_data[0],
-						(float)my_sens_obj.sens_data[1],
-						(float)my_sens_obj.sens_data[2]);
-
-                lv_label_set_text(sensor_value, newstr);
-
-
-        	} else if(strcmp(my_sens_obj.sens_type, "no sensor") == 0){
-        		char buf[32]="NAN";
+            if((strcmp(update_img_obj.sens_type, "Disconnected") == 0) | ((strcmp(update_img_obj.sens_type, "NAN") == 0))){
+        		char buf[32]="------";
         		lv_label_set_text(sensor_value, buf);
         	}else{
         		char buf[32];
-        		snprintf(buf, sizeof(buf), "%.1f", (float)my_sens_obj.sens_data[0]);
+        		snprintf(buf, sizeof(buf), "%.1f", (float)update_img_obj.sens_data);
         		lv_label_set_text(sensor_value, buf);
         	}
 
@@ -107,8 +136,6 @@ void lv_tick_thread(void *arg) {
 
 void lvgl_thread_INIT(){
 
-	sensor_queue = osMessageQueueNew(1, sizeof(changed_sens_obj), NULL);
-
     const osThreadAttr_t lvgl_thread_attr = {
         .name = "lvgl_thread",
 		.stack_size = 14000,
@@ -121,7 +148,5 @@ void lvgl_thread_INIT(){
     osThreadNew(lv_tick_thread, NULL, NULL);
 }
 
-osMessageQueueId_t msg_queue_get(){
-	return sensor_queue;
-}
-*/
+
+

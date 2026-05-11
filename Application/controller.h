@@ -1,0 +1,41 @@
+#ifndef controller_
+#define controller_
+#include "main.h"
+#include "cmsis_os2.h"
+
+
+typedef struct{
+	//top text label (ie showing if displaying data, Not displaying if data not shown)
+	char img_showing[100];
+
+	//which sensor is connected
+	char sens_type[100];
+	//the sensors current data
+	//if a sensor is disconnected, it sends 0
+	// for Accelerometer, it sends x-axis acceleration, then y-axis, then z axis and then loops over it (ie x->y->z->x->y->z......)
+	uint32_t sens_data;
+} update_image_obj;
+
+
+typedef struct{
+	char sens_type[100];
+	int32_t sens_data;
+} sens_obj;
+
+
+typedef struct{
+	uint32_t touched_y;
+	uint32_t touched_x;
+} touch_obj;
+
+
+osMessageQueueId_t sens_msg_queue_get();
+
+osMessageQueueId_t img_msg_queue_get();
+
+osMessageQueueId_t touch_msg_queue_get();
+
+void controller_INIT();
+
+#endif
+

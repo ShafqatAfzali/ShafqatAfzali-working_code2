@@ -1,9 +1,10 @@
-#include "main.h"
 #include "accelerometer_sens.h"
 #include "sens_detect.h"
+#include "controller.h"
 #include "i2c.h"
 #include "cmsis_os2.h"
 #include <stdbool.h>
+#include <string.h>
 
 #define accelometer_addr 0x1D
 uint8_t X_MSB_reg_addr=0x01;
@@ -38,22 +39,25 @@ HAL_StatusTypeDef accelormeter_recieve_status;
 osThreadId_t accelerometer_thread_id;
 bool accelerometer_active;
 
-//changed_sens_obj accleration_msg;
+sens_obj accleration_msg;
 
 //lagde funksjonen for å forkorte koden og rengjøre
 //det funker nesten på samme måte som når vi skriver i light_sens.c
 
 
-void I2C_accelerometer_transmit(uint8_t reg_addr, uint8_t reg_write){
+bool I2C_accelerometer_transmit(uint8_t reg_addr, uint8_t reg_write){
 
 	uint8_t write_arr[2] = {reg_addr, reg_write};
 
-	HAL_I2C_Master_Transmit(
+	acclerometer_transmit_status=HAL_I2C_Master_Transmit(
 			&hi2c2,
 			accelometer_addr<< 1,
 			write_arr,
 			2,
 			200);
+	if (acclerometer_transmit_status==HAL_OK){
+		return true;
+	} else{ return false;}
 
 }
 
@@ -62,12 +66,9 @@ void accelerometer_config(){
 
 	//set stanby mode for config (ACTIVE bit = 0 in CTRL_REG1)
 	I2C_accelerometer_transmit(CTRL_reg1_config_addr,CTRL_reg1_standby_write);
-	osDelay(50);
 
 	//setter range til +/- 4g
 	I2C_accelerometer_transmit(XYZ_reg_config_addr,XYZ_reg_config_write);
-	osDelay(50);
-
 
 	//setter low power mode
 	I2C_accelerometer_transmit(CTRL_reg2_config_addr,CTRL_reg2_write);
@@ -102,10 +103,6 @@ void accelormeter_thread_func(){
 
 			if(I2C_status==osOK){
 
-				//uint16_t X_axl=I2C_accelerometer_recieve(X_MSB_reg_addr,X_LSB_reg_addr);
-				//uint16_t Y_axl=I2C_accelerometer_recieve(Y_MSB_reg_addr,Y_LSB_reg_addr);
-				//uint16_t Z_axl=I2C_accelerometer_recieve(Z_MSB_reg_addr,Z_LSB_reg_addr);
-
 				//siden adressene til outupt verdiene er "consecutivde"
 				//Altså 0x01, 0x02, 0x03 og ... så kan vi lese alle på engang
 				uint8_t data[6];
@@ -129,17 +126,26 @@ void accelormeter_thread_func(){
 					Z_axl>>=2;
 
 					//omformer til mm/s^2 basert på \-4g range (2048 count gitt i datablad)
-					/*int32_t X_ms2 = ((int32_t)X_axl * 9810) / 2048;
-					int32_t Y_ms2 = ((int32_t)Y_axl * 9810) / 2048;
-					int32_t Z_ms2 = ((int32_t)Z_axl * 9810) / 2048;
+					int32_t X_ms2 = ((int32_t)X_axl * 9810) / (2048*1000);
+					int32_t Y_ms2 = ((int32_t)Y_axl * 9810) / (2048*1000);
+					int32_t Z_ms2 = ((int32_t)Z_axl * 9810) / (2048*1000);
 
 
-					strcpy(accleration_msg.sens_type, "acceleration");
-					accleration_msg.sens_data[0] = X_ms2;
-					accleration_msg.sens_data[1] = Y_ms2;
-					accleration_msg.sens_data[2] = Z_ms2;
 
-					osMessageQueuePut(msg_queue_get(), &accleration_msg, 0,0);*/
+					strcpy(accleration_msg.sens_type, "acceleration_x");
+					accleration_msg.sens_data = X_ms2;
+					osMessageQueuePut(sens_msg_queue_get(), &accleration_msg, 0,0);
+					osDelay(1000);
+
+					strcpy(accleration_msg.sens_type, "acceleration_y");
+					accleration_msg.sens_data = Y_ms2;
+					osMessageQueuePut(sens_msg_queue_get(), &accleration_msg, 0,0);
+					osDelay(1000);
+
+					strcpy(accleration_msg.sens_type, "acceleration_z");
+					accleration_msg.sens_data = Z_ms2;
+					osMessageQueuePut(sens_msg_queue_get(), &accleration_msg, 0,0);
+					osDelay(1000);
 
 				}else{
 					HAL_I2C_DeInit(&hi2c2);
@@ -147,15 +153,11 @@ void accelormeter_thread_func(){
 					HAL_I2C_Init(&hi2c2);
 					accelerometer_active=false;
 
-					osEventFlagsSet(get_flag_id(),0x08);
-
-					/*
 					strcpy(accleration_msg.sens_type, "no sensor");
-					accleration_msg.sens_data[0] = 0;
-					accleration_msg.sens_data[1] = 0;
-					accleration_msg.sens_data[2] = 0;
+					accleration_msg.sens_data = 0;
 
-					osMessageQueuePut(msg_queue_get(), &accleration_msg, 0,0);*/
+					osMessageQueuePut(sens_msg_queue_get(), &accleration_msg, 0,0);
+					osEventFlagsSet(get_flag_id(),0x08);
 				}
 			}
 

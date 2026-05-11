@@ -1,0 +1,8 @@
+../Application/mytouch.c:15:6:set_pin_adc	40	static
+../Application/mytouch.c:43:6:set_pin_vcc	40	static
+../Application/mytouch.c:69:6:set_pin_gnd	40	static
+../Application/mytouch.c:91:6:set_pin_hi_z	40	static
+../Application/mytouch.c:108:10:pixel_touch_y	32	static
+../Application/mytouch.c:117:10:pixel_touch_x	32	static
+../Application/mytouch.c:127:6:touchscreen_thread_func	40	static
+../Application/mytouch.c:197:6:touchscreen_INIT	48	static
