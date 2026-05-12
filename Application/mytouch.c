@@ -29,8 +29,12 @@ void set_pin_adc(int i)
     	HAL_GPIO_Init(YU_GPIO_Port, &ADC_GPIO_struct);
     	ADC_config_type.Channel = ADC_CHANNEL_4;
     }
-    ADC_config_type.Rank = 1;
-    ADC_config_type.SamplingTime = ADC_SAMPLETIME_3CYCLES_5;
+    ADC_config_type.Rank = ADC_REGULAR_RANK_1;
+    ADC_config_type.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+    ADC_config_type.SingleDiff = ADC_SINGLE_ENDED;
+    ADC_config_type.OffsetNumber = ADC_OFFSET_NONE;
+    ADC_config_type.Offset = 0;
+
     HAL_ADC_ConfigChannel(&hadc1, &ADC_config_type);
 
 }
